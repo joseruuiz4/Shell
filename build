@@ -1,0 +1,1 @@
+gcc Shell_project.c job_control.c -o "main" ; ./main
