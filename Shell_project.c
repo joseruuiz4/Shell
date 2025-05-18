@@ -19,6 +19,28 @@ To compile and run the program:
 
 #define MAX_LINE 256 /* 256 chars per line, per command, should be enough. */
 
+job * jobs; // job list
+
+
+
+
+
+
+// -----------------------------------------------------------------------
+//                            MANEJADOR          
+// -----------------------------------------------------------------------
+
+
+void manejador(){
+
+
+	
+}
+
+
+
+
+
 // -----------------------------------------------------------------------
 //                            MAIN          
 // -----------------------------------------------------------------------
@@ -40,6 +62,10 @@ int main(void)
 	new_process_group(getpid()); // create new process group
 	set_terminal(getpid()); // set terminal for foreground process
 
+	jobs = new_list("Lista de jobs"); // create new job list
+
+	signal(SIGCHLD, manejador); // vincular la señal SIGCHLD al manejador
+
 	while (1)   /* Program terminates normally inside get_command() after ^D is typed*/
 	{   		
 		printf("COMMAND->");
@@ -59,6 +85,13 @@ int main(void)
 			continue; // vuelve a pedir otro comando
 		}
 
+		if(strcmp(args[0], "jobs") == 0){ // if command is jobs
+			print_job_list(jobs); // print job list
+			continue; // vuelve a pedir otro comando
+		}
+
+
+
 		pid_fork = fork(); // create a child process
 
 		if(pid_fork == 0){ // Proceso Hijo
@@ -68,6 +101,7 @@ int main(void)
 				set_terminal(getpid()); // set terminal for foreground process
 
 			}
+
 			restore_terminal_signals(); // restore terminal signals
 
 			
@@ -86,6 +120,8 @@ int main(void)
 				status_res = analyze_status(status, &info); // analyze status
 				
 				if(status_res == SUSPENDED){ // Si el proceso se ha suspendido
+					job * newjob = new_job(pid_fork, args[0], STOPPED);
+				add_job(jobs, newjob); // add job to list
 					printf("Foreground pid: %d, command: %s, %s, info: %d\n", pid_wait, args[0], status_strings[status_res], info);
 					fflush(stdout);
 				}else if(status_res == EXITED || status_res == SIGNALED){ // Si el proceso ha terminado
@@ -95,6 +131,10 @@ int main(void)
 					}
 				}
 			}else{
+
+				job * newjob = new_job(pid_fork, args[0], BACKGROUND);
+				add_job(jobs, newjob); // add job to list
+
 				printf("Background job running... pid: %d, command: %s\n", pid_fork, args[0]);
 				fflush(stdout);
 				
