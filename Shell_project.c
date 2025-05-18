@@ -15,6 +15,7 @@ To compile and run the program:
 **/
 
 #include "job_control.h"   // remember to compile with module job_control.c 
+#include <string.h>       // para comparar cadenas
 
 #define MAX_LINE 256 /* 256 chars per line, per command, should be enough. */
 
@@ -33,6 +34,12 @@ int main(void)
 	enum status status_res; /* status processed by analyze_status() */
 	int info;				/* info processed by analyze_status() */
 
+
+
+	ignore_terminal_signals(); // ignore terminal signals
+	new_process_group(getpid()); // create new process group
+	set_terminal(getpid()); // set terminal for foreground process
+
 	while (1)   /* Program terminates normally inside get_command() after ^D is typed*/
 	{   		
 		printf("COMMAND->");
@@ -41,45 +48,59 @@ int main(void)
 		
 		if(args[0]==NULL) continue;   // if empty command
 
+		if(strcmp(args[0], "cd") == 0){ // if command is cd
+			if(args[1] == NULL){
+				chdir(getenv("HOME")); // cambiamos a directorio home
+			}else{
+			if(chdir(args[1]) != 0){
+				perror("Error changing directory");
+				}
+			}
+			continue; // vuelve a pedir otro comando
+		}
+
 		pid_fork = fork(); // create a child process
 
 		if(pid_fork == 0){ // Proceso Hijo
-			// new_process_group(getpid()); 
+			new_process_group(getpid()); 
+			
+			if(background == 0){
+				set_terminal(getpid()); // set terminal for foreground process
+
+			}
+			restore_terminal_signals(); // restore terminal signals
+
+			
 
 
     		execvp(args[0], args); // ejecuta el comando
-    		perror("execvp failed"); // execvp solo returns si error
+    		fprintf(stderr, "Error, command not found: %s\n", args[0]);
+			fflush(stderr);
 			exit(-1); // exit child process
 		}else if(pid_fork > 0){ // Proceso Padre
 			if(background == 0){
 				
-				pid_wait = waitpid(pid_fork, &status, 0); // wait for child process
-
-
-	
+				pid_wait = waitpid(pid_fork, &status, WUNTRACED); // wait for child process
+				set_terminal(getpid()); // set terminal for foreground process
 
 				status_res = analyze_status(status, &info); // analyze status
 				
-
-				if(status == 0){
-				printf("Foreground pid: %d, command: %s, %s, info: %d\n", pid_wait, args[0], status_strings[status_res], status);
-
-				}else if(status == 65280){
-					printf("Error, command not found: %s\n", args[0]);
+				if(status_res == SUSPENDED){ // Si el proceso se ha suspendido
+					printf("Foreground pid: %d, command: %s, %s, info: %d\n", pid_wait, args[0], status_strings[status_res], info);
+					fflush(stdout);
+				}else if(status_res == EXITED || status_res == SIGNALED){ // Si el proceso ha terminado
+					if(info != 255){	// Si no da error
+						printf("Foreground pid: %d, command: %s, %s, info: %d\n", pid_wait, args[0], status_strings[status_res], info);
+						fflush(stdout);
+					}
 				}
 			}else{
 				printf("Background job running... pid: %d, command: %s\n", pid_fork, args[0]);
+				fflush(stdout);
 				
 			}
 		}
 
-		/* the steps are:
-			 (1) fork a child process using fork()
-			 (2) the child process will invoke execvp()
-			 (3) if background == 0, the parent will wait, otherwise continue 
-			 (4) Shell shows a status message for processed command 
-			 (5) loop returns to get_commnad() function
-		*/
 
-	} // end while
+	} 
 }
