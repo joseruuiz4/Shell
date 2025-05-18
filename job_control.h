@@ -69,6 +69,7 @@ void mask_signal(int signal, int block);
 #define ignore_terminal_signals() terminal_signals(SIG_IGN)
 
 #define new_process_group(pid)   setpgid(pid, pid)
+#define set_terminal(pid)  tcsetpgrp(STDIN_FILENO,pid)
 
 #define block_SIGCHLD()   	 mask_signal(SIGCHLD, SIG_BLOCK)
 #define unblock_SIGCHLD() 	 mask_signal(SIGCHLD, SIG_UNBLOCK)

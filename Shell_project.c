@@ -41,6 +41,38 @@ int main(void)
 		
 		if(args[0]==NULL) continue;   // if empty command
 
+		pid_fork = fork(); // create a child process
+
+		if(pid_fork == 0){ // Proceso Hijo
+			// new_process_group(getpid()); 
+
+
+    		execvp(args[0], args); // ejecuta el comando
+    		perror("execvp failed"); // execvp solo returns si error
+			exit(-1); // exit child process
+		}else if(pid_fork > 0){ // Proceso Padre
+			if(background == 0){
+				
+				pid_wait = waitpid(pid_fork, &status, 0); // wait for child process
+
+
+	
+
+				status_res = analyze_status(status, &info); // analyze status
+				
+
+				if(status == 0){
+				printf("Foreground pid: %d, command: %s, %s, info: %d\n", pid_wait, args[0], status_strings[status_res], status);
+
+				}else if(status == 65280){
+					printf("Error, command not found: %s\n", args[0]);
+				}
+			}else{
+				printf("Background job running... pid: %d, command: %s\n", pid_fork, args[0]);
+				
+			}
+		}
+
 		/* the steps are:
 			 (1) fork a child process using fork()
 			 (2) the child process will invoke execvp()
