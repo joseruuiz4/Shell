@@ -14,6 +14,15 @@ To compile and run the program:
 
 **/
 
+/*
+DUDAS:
+Ha de tenerse en cuenta, así mismo, que una tarea suspendida
+(STOPPED) que se reanude como consecuencia de recibir la señal SIGCONT
+(no porque pase a primer plano) debe cambiar su estado a background.
+
+
+*/
+
 #include "job_control.h"   // remember to compile with module job_control.c 
 #include <string.h>       // para comparar cadenas
 
@@ -114,7 +123,11 @@ int main(void)
 		}
 
 		if(strcmp(args[0], "jobs") == 0){ // if command is jobs
+			block_SIGCHLD(); // bloqueamos la señal SIGCHLD
+
 			print_job_list(jobs); // print job list
+			
+			unblock_SIGCHLD(); // desbloqueamos la señal SIGCHLD
 			continue; // vuelve a pedir otro comando
 		}
 
@@ -148,11 +161,15 @@ int main(void)
 				status_res = analyze_status(status, &info); // analyze status
 				
 				if(status_res == SUSPENDED){ // Si el proceso se ha suspendido
+					block_SIGCHLD(); // bloqueamos la señal SIGCHLD
+
 					job * newjob = new_job(pid_fork, args[0], STOPPED);
 					add_job(jobs, newjob); // add job to list
 
 					printf("Foreground pid: %d, command: %s, %s, info: %d\n", pid_wait, args[0], status_strings[status_res], info);
 					fflush(stdout);
+
+					unblock_SIGCHLD(); // desbloqueamos la señal SIGCHLD
 				}else if(status_res == EXITED || status_res == SIGNALED){ // Si el proceso ha terminado
 					if(info != 255){	// Si no da error
 						printf("Foreground pid: %d, command: %s, %s, info: %d\n", pid_wait, args[0], status_strings[status_res], info);
@@ -160,12 +177,15 @@ int main(void)
 					}
 				}
 			}else{
+				block_SIGCHLD(); // bloqueamos la señal SIGCHLD
+
 				job * newjob = new_job(pid_fork, args[0], BACKGROUND);
 				add_job(jobs, newjob); // add job to list
 
 				printf("Background job running... pid: %d, command: %s\n", pid_fork, args[0]);
 				fflush(stdout);
 				
+				unblock_SIGCHLD(); // desbloqueamos la señal SIGCHLD
 			}
 		}
 
