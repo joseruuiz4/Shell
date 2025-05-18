@@ -31,13 +31,41 @@ job * jobs; // job list
 // -----------------------------------------------------------------------
 
 
-void manejador(){
+void manejador(int signal){
+	block_SIGCHLD(); // bloqueamos la señal SIGCHLD
+	job * item;
+	int status, info;
+	int pid_wait;
 
+	enum status status_res;
 
-	
+	for(int i = 1; i <= list_size(jobs); i++){
+		item = get_item_bypos(jobs, i); // obtenemos el job
+		pid_wait = waitpid(item->pgid, &status, WUNTRACED | WNOHANG | WCONTINUED); // esperamos a que termine
+
+		if(pid_wait == item->pgid){
+			status_res = analyze_status(status, &info); // analizamos el estado
+
+			if(status_res == SUSPENDED){
+				printf("Process suspended, command: %s, %s, info: %d\n", item->command, status_strings[status_res], info);
+				item->state = STOPPED; // cambiamos el estado a STOPPED
+				
+
+			}else if(status_res == CONTINUED){
+				printf("Process continued, command: %s, %s, info: %d\n", item->command, status_strings[status_res], info);
+				item->state = BACKGROUND; // cambiamos el estado a BACKGROUND
+
+			}else if(status_res == EXITED){
+				printf("Process exited, command: %s, %s, info: %d\n", item->command, status_strings[status_res], info);
+				delete_job(jobs, item); // eliminamos el job de la lista
+
+			}
+		}
+
+		unblock_SIGCHLD(); // desbloqueamos la señal SIGCHLD
+	}
+
 }
-
-
 
 
 
@@ -62,8 +90,8 @@ int main(void)
 	new_process_group(getpid()); // create new process group
 	set_terminal(getpid()); // set terminal for foreground process
 
-	jobs = new_list("Lista de jobs"); // create new job list
 
+	jobs = new_list("Lista de jobs"); // create new job list
 	signal(SIGCHLD, manejador); // vincular la señal SIGCHLD al manejador
 
 	while (1)   /* Program terminates normally inside get_command() after ^D is typed*/
@@ -121,7 +149,8 @@ int main(void)
 				
 				if(status_res == SUSPENDED){ // Si el proceso se ha suspendido
 					job * newjob = new_job(pid_fork, args[0], STOPPED);
-				add_job(jobs, newjob); // add job to list
+					add_job(jobs, newjob); // add job to list
+
 					printf("Foreground pid: %d, command: %s, %s, info: %d\n", pid_wait, args[0], status_strings[status_res], info);
 					fflush(stdout);
 				}else if(status_res == EXITED || status_res == SIGNALED){ // Si el proceso ha terminado
@@ -131,7 +160,6 @@ int main(void)
 					}
 				}
 			}else{
-
 				job * newjob = new_job(pid_fork, args[0], BACKGROUND);
 				add_job(jobs, newjob); // add job to list
 
