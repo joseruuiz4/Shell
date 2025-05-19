@@ -14,25 +14,12 @@ To compile and run the program:
 
 **/
 
-/*
-DUDAS:
-Ha de tenerse en cuenta, así mismo, que una tarea suspendida
-(STOPPED) que se reanude como consecuencia de recibir la señal SIGCONT
-(no porque pase a primer plano) debe cambiar su estado a background.
-
-
-*/
-
 #include "job_control.h"   // remember to compile with module job_control.c 
 #include <string.h>       // para comparar cadenas
 
 #define MAX_LINE 256 /* 256 chars per line, per command, should be enough. */
 
 job * jobs; // job list
-
-
-
-
 
 
 // -----------------------------------------------------------------------
@@ -94,7 +81,6 @@ int main(void)
 	int info;				/* info processed by analyze_status() */
 
 
-
 	ignore_terminal_signals(); // ignore terminal signals
 	new_process_group(getpid()); // create new process group
 	set_terminal(getpid()); // set terminal for foreground process
@@ -131,6 +117,68 @@ int main(void)
 			continue; // vuelve a pedir otro comando
 		}
 
+		if(strcmp(args[0], "fg") == 0){ // if command is fg
+			int pos = 1;
+			if(args[1] != NULL){
+				pos = atoi(args[1]); // convert string to int
+			}
+
+			if(pos > list_size(jobs) || pos < 1){ // si la posicion es incorrecta
+				fprintf(stderr, "Error, invalid position: %d\n", pos);
+				fflush(stderr);
+				continue; // vuelve a pedir otro comando
+			}else{
+				job * item = get_item_bypos(jobs, pos); // obtenemos el job
+				new_process_group(item->pgid); // creamos un nuevo grupo de procesos
+				set_terminal(item->pgid); // seteamos el terminal para el proceso en primer plano
+
+				if(item->state == STOPPED){
+					killpg(item->pgid, SIGCONT); // enviamos la señal SIGCONT al grupo de procesos
+				}
+				pid_wait = waitpid(item->pgid, &status, WUNTRACED); // esperamos a que termine
+
+				set_terminal(getpid()); // devolvemos el terminal al padre
+
+				status_res = analyze_status(status, &info); // analizamos el estado
+
+				if(status_res == EXITED || status_res == SIGNALED){ // si el proceso ha terminado
+					block_SIGCHLD();
+					delete_job(jobs, item); // eliminamos el job de la lista
+					unblock_SIGCHLD();
+				}else if(status_res == SUSPENDED){ // si el proceso ha sido suspendido
+					block_SIGCHLD(); // bloqueamos la señal SIGCHLD
+
+					item->state = STOPPED; // cambiamos el estado a STOPPED
+
+					unblock_SIGCHLD(); // desbloqueamos la señal SIGCHLD
+				}
+
+			}	
+			continue; // vuelve a pedir otro comando
+		}
+
+		if(strcmp(args[0], "bg") == 0){ // if command is bg
+			int pos = 1;
+			if(args[1] != NULL){
+				pos = atoi(args[1]); // convert string to int
+			}
+
+			if(pos > list_size(jobs) || pos < 1){ // si la posicion es incorrecta
+				fprintf(stderr, "Error, invalid position: %d\n", pos);
+				fflush(stderr);
+				continue; // vuelve a pedir otro comando
+			}else{
+				job * item = get_item_bypos(jobs, pos); // obtenemos el job
+
+				if(item->state == STOPPED){
+					item->state = BACKGROUND; // cambiamos el estado a BACKGROUND
+					killpg(item->pgid, SIGCONT); // enviamos la señal SIGCONT al grupo de procesos
+				}
+				
+			}	
+			continue; // vuelve a pedir otro comando
+		}
+
 
 
 		pid_fork = fork(); // create a child process
@@ -146,8 +194,6 @@ int main(void)
 			restore_terminal_signals(); // restore terminal signals
 
 			
-
-
     		execvp(args[0], args); // ejecuta el comando
     		fprintf(stderr, "Error, command not found: %s\n", args[0]);
 			fflush(stderr);
