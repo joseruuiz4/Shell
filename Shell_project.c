@@ -118,6 +118,8 @@ int main(void)
 		}
 
 		if(strcmp(args[0], "fg") == 0){ // if command is fg
+			block_SIGCHLD();
+
 			int pos = 1;
 			if(args[1] != NULL){
 				pos = atoi(args[1]); // convert string to int
@@ -142,22 +144,20 @@ int main(void)
 				status_res = analyze_status(status, &info); // analizamos el estado
 
 				if(status_res == EXITED || status_res == SIGNALED){ // si el proceso ha terminado
-					block_SIGCHLD();
 					delete_job(jobs, item); // eliminamos el job de la lista
-					unblock_SIGCHLD();
+
 				}else if(status_res == SUSPENDED){ // si el proceso ha sido suspendido
-					block_SIGCHLD(); // bloqueamos la señal SIGCHLD
-
 					item->state = STOPPED; // cambiamos el estado a STOPPED
-
-					unblock_SIGCHLD(); // desbloqueamos la señal SIGCHLD
 				}
 
 			}	
+			unblock_SIGCHLD(); // desbloqueamos la señal SIGCHLD
 			continue; // vuelve a pedir otro comando
 		}
 
 		if(strcmp(args[0], "bg") == 0){ // if command is bg
+			block_SIGCHLD(); // bloqueamos la señal SIGCHLD
+			
 			int pos = 1;
 			if(args[1] != NULL){
 				pos = atoi(args[1]); // convert string to int
@@ -175,7 +175,8 @@ int main(void)
 					killpg(item->pgid, SIGCONT); // enviamos la señal SIGCONT al grupo de procesos
 				}
 				
-			}	
+			}						
+			unblock_SIGCHLD(); // desbloqueamos la señal SIGCHLD
 			continue; // vuelve a pedir otro comando
 		}
 
